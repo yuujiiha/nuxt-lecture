@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuxt規約勉強会 #1 — 設定・規約・ディレクトリ構成</title>
+  <style>
+    :root {
+      --ink: #eaf5f1;
+      --muted: #a6bbb4;
+      --green: #00dc82;
+      --green-dark: #003f31;
+      --cyan: #6ee7f2;
+      --amber: #ffca62;
+      --panel: rgba(18, 39, 35, .82);
+      --line: rgba(184, 225, 211, .18);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #071411;
+      color: var(--ink);
+      font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 84% 14%, rgba(0, 220, 130, .17), transparent 28%),
+        radial-gradient(circle at 12% 88%, rgba(110, 231, 242, .10), transparent 28%),
+        linear-gradient(135deg, #071411 0%, #0a1b17 100%);
+      pointer-events: none;
+    }
+
+    .deck { position: relative; width: 100%; height: 100%; }
+
+    .slide {
+      display: none;
+      position: absolute;
+      inset: 0;
+      padding: clamp(42px, 6vh, 76px) clamp(58px, 7vw, 108px);
+      grid-template-rows: auto 1fr auto;
+      gap: 24px;
+    }
+
+    .slide.active { display: grid; animation: enter .24s ease-out; }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(7px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .eyebrow {
+      color: var(--green);
+      font-size: clamp(14px, 1.5vw, 22px);
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      max-width: 1100px;
+      font-size: clamp(42px, 6.1vw, 88px);
+      line-height: 1.1;
+      letter-spacing: -.035em;
+    }
+
+    h2 {
+      font-size: clamp(32px, 4.1vw, 60px);
+      line-height: 1.16;
+      letter-spacing: -.025em;
+    }
+
+    h3 { font-size: clamp(20px, 2vw, 30px); line-height: 1.3; }
+    p, li { font-size: clamp(17px, 1.55vw, 25px); line-height: 1.55; }
+    code { font-family: "SFMono-Regular", Consolas, monospace; color: var(--cyan); }
+    strong { color: #fff; }
+    .accent { color: var(--green); }
+    .muted { color: var(--muted); }
+
+    .lead {
+      max-width: 1040px;
+      color: #c5d8d2;
+      font-size: clamp(21px, 2.25vw, 34px);
+      line-height: 1.55;
+    }
+
+    .content { align-self: center; width: 100%; }
+    .stack { display: grid; gap: 22px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+
+    .card {
+      padding: 26px 28px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .15);
+    }
+
+    .card h3 { margin-bottom: 12px; }
+    .card p + p { margin-top: 12px; }
+    .card ul { margin: 14px 0 0; padding-left: 1.25em; }
+    .card li + li { margin-top: 7px; }
+    .config { border-top: 4px solid var(--cyan); }
+    .convention { border-top: 4px solid var(--green); }
+
+    .pill {
+      display: inline-block;
+      margin-bottom: 12px;
+      padding: 6px 11px;
+      border-radius: 999px;
+      background: rgba(0, 220, 130, .12);
+      color: var(--green);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: .06em;
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: stretch;
+      gap: 18px;
+    }
+
+    .arrow {
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 38px;
+      font-weight: 900;
+    }
+
+    .example {
+      margin-top: 14px;
+      padding: 13px 16px;
+      border-radius: 12px;
+      background: rgba(3, 12, 10, .75);
+      font-size: clamp(15px, 1.25vw, 20px);
+      line-height: 1.55;
+    }
+
+    .benefits {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 14px;
+    }
+
+    .benefit {
+      min-height: 184px;
+      padding: 20px 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+
+    .benefit .num {
+      color: var(--green);
+      font-family: ui-monospace, monospace;
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .benefit h3 { margin: 12px 0 8px; font-size: clamp(18px, 1.5vw, 24px); }
+    .benefit p { color: var(--muted); font-size: clamp(14px, 1.14vw, 18px); line-height: 1.45; }
+
+    .tree {
+      white-space: pre;
+      margin: 0;
+      padding: 22px 26px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(3, 12, 10, .78);
+      color: #d7e9e3;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: clamp(14px, 1.32vw, 21px);
+      line-height: 1.56;
+    }
+
+    .tree .dir { color: var(--green); font-weight: 800; }
+    .tree .file { color: var(--cyan); }
+
+    .map {
+      display: grid;
+      grid-template-columns: 1.05fr 1.35fr 1.9fr;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+
+    .map > div {
+      padding: 15px 20px;
+      border-bottom: 1px solid var(--line);
+      font-size: clamp(14px, 1.25vw, 20px);
+      line-height: 1.42;
+    }
+
+    .map > div:nth-last-child(-n+3) { border-bottom: 0; }
+    .map .head { color: var(--muted); font-size: 14px; font-weight: 800; letter-spacing: .08em; }
+    .map .name { color: var(--green); font-family: ui-monospace, monospace; font-weight: 800; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .flow .node {
+      min-height: 145px;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      text-align: center;
+    }
+
+    .flow .node p { font-size: clamp(17px, 1.5vw, 23px); }
+    .flow .arrow { font-size: 30px; }
+
+    .quiz-list { display: grid; gap: 12px; }
+    .quiz-row {
+      display: grid;
+      grid-template-columns: 54px 1fr 1.1fr;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+    }
+
+    .quiz-row .q {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(0, 220, 130, .15);
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .quiz-row p { font-size: clamp(15px, 1.3vw, 20px); line-height: 1.35; }
+    .answer { opacity: 0; color: var(--cyan); transition: opacity .18s ease; }
+    .show-answers .answer { opacity: 1; }
+
+    .takeaway {
+      padding: 24px 28px;
+      border-left: 5px solid var(--green);
+      border-radius: 0 16px 16px 0;
+      background: rgba(0, 220, 130, .08);
+      font-size: clamp(22px, 2.35vw, 35px);
+      line-height: 1.5;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #688078;
+      font-size: 13px;
+      letter-spacing: .05em;
+    }
+
+    .progress {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      width: 0;
+      height: 4px;
+      background: var(--green);
+      transition: width .18s ease;
+      z-index: 4;
+    }
+
+    .controls {
+      position: fixed;
+      right: 18px;
+      bottom: 16px;
+      z-index: 5;
+      opacity: .26;
+      transition: opacity .2s;
+    }
+
+    .controls:hover { opacity: 1; }
+    button {
+      width: 38px;
+      height: 34px;
+      margin-left: 5px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #10251f;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    @media (max-width: 900px) {
+      .benefits { grid-template-columns: repeat(3, 1fr); }
+      .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      html, body { overflow: visible; background: #071411; }
+      .slide, .slide.active {
+        position: relative;
+        display: grid;
+        width: 13.333in;
+        height: 7.5in;
+        break-after: page;
+      }
+      .controls, .progress { display: none; }
+      .answer { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck">
+    <section class="slide active">
+      <header class="eyebrow">Nuxt規約勉強会 #1</header>
+      <div class="content stack">
+        <h1>設定・規約・<br><span class="accent">ディレクトリ構成</span></h1>
+        <p class="lead">「どこに書くか」を覚える前に、<br>なぜ置き場所が決まっているのかを理解する。</p>
+      </div>
+      <footer class="footer"><span>所要時間：約8分</span><span>1 / 9</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Today’s Goal</header>
+      <div class="content stack">
+        <h2>今日できるようになること</h2>
+        <div class="grid-3">
+          <article class="card"><span class="pill">01</span><h3>違いを説明する</h3><p><strong>設定</strong>と<strong>規約</strong>が、それぞれ何のためにあるか説明できる。</p></article>
+          <article class="card"><span class="pill">02</span><h3>メリットを理解する</h3><p>規約が、開発の速さとチームの共通理解につながる理由が分かる。</p></article>
+          <article class="card"><span class="pill">03</span><h3>置き場所を選ぶ</h3><p>コードの<strong>責務</strong>から、Nuxtの主要ディレクトリを選べる。</p></article>
+        </div>
+      </div>
+      <footer class="footer"><span>ゴールを先に共有する</span><span>2 / 9</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Configuration vs Convention</header>
+      <div class="content stack">
+        <h2>設定と規約は、役割が違う</h2>
+        <div class="grid-2">
+          <article class="card config">
+            <span class="pill" style="color:var(--cyan);background:rgba(110,231,242,.10)">設定 / Configuration</span>
+            <h3>動作を明示的に指定する</h3>
+            <p>環境やプロジェクトごとに変えたい値・選択肢を、開発者が指定する。</p>
+            <div class="example"><code>PORT = 3000</code><br><code>locale = "ja"</code><br><code>SSR = true</code></div>
+          </article>
+          <article class="card convention">
+            <span class="pill">規約 / Convention</span>
+            <h3>共通の前提として決めておく</h3>
+            <p>名前や置き場所などをルール化し、毎回設定・相談しなくてよくする。</p>
+            <div class="example"><code>*.test.ts</code> はテスト<br><code>feature/*</code> は機能ブランチ<br>ファイル名は <code>kebab-case</code></div>
+          </article>
+        </div>
+      </div>
+      <footer class="footer"><span>柔軟性を担う設定／共通理解を作る規約</span><span>3 / 9</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Convention over Configuration</header>
+      <div class="content stack">
+        <h2>規約があれば、決めることを減らせる</h2>
+        <div class="compare">
+          <article class="card">
+            <h3 class="muted">規約がない場合</h3>
+            <p>ファイルを追加するたびに、名前・置き場所・読み込み方を決めて設定する。</p>
+          </article>
+          <div class="arrow">→</div>
+          <article class="card convention">
+            <h3>規約がある場合</h3>
+            <p>決められた場所へ置けば、意味と扱い方がチームにも仕組みにも伝わる。</p>
+          </article>
+        </div>
+        <p class="takeaway"><strong>規約を優先し、必要な差分だけ設定する。</strong><br><span class="muted">規約は設定をゼロにするものではなく、設定すべき項目を減らすもの。</span></p>
+      </div>
+      <footer class="footer"><span>Convention over Configuration</span><span>4 / 9</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Why Conventions?</header>
+      <div class="content stack">
+        <h2>規約がもたらす5つのメリット</h2>
+        <div class="benefits">
+          <article class="benefit"><span class="num">01</span><h3>迷いが減る</h3><p>実装のたびに置き場所や命名を考えなくてよい。</p></article>
+          <article class="benefit"><span class="num">02</span><h3>探しやすい</h3><p>他の人が書いたコードでも、場所を予測できる。</p></article>
+          <article class="benefit"><span class="num">03</span><h3>説明が減る</h3><p>チームで同じ前提を共有でき、引き継ぎが早い。</p></article>
+          <article class="benefit"><span class="num">04</span><h3>自動化できる</h3><p>フレームワークやツールが、規約をもとに処理できる。</p></article>
+          <article class="benefit"><span class="num">05</span><h3>レビューが速い</h3><p>好みではなく、共通ルールを基準に判断できる。</p></article>
+        </div>
+        <p class="muted">ただし規約は目的ではない。例外が必要なら、理由を共有して設定やルールを見直す。</p>
+      </div>
+      <footer class="footer"><span>規約 = チームと仕組みの共通言語</span><span>5 / 9</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Connect to Nuxt</header>
+      <div class="content stack">
+        <h2>Nuxtでは「置き場所」が意味を持つ</h2>
+        <div class="flow">
+          <div class="node"><p><code>pages/users.vue</code><br><span class="muted">ファイルを置く</span></p></div>
+          <div class="arrow">→</div>
+          <div class="node"><p>Nuxtが<br><strong>規約を解釈</strong></p></div>
+          <div class="arrow">→</div>
+          <div class="node"><p><code>/users</code><br><span class="muted">ルートを生成</span></p></div>
+        </div>
+        <div class="grid-2">
+          <div class="example"><code>components/UserCard.vue</code><br>→ <code>&lt;UserCard /&gt;</code> として利用可能</div>
+          <div class="example"><code>server/api/users.get.ts</code><br>→ <code>GET /api/users</code> を生成</div>
+        </div>
+        <p class="takeaway">ディレクトリ構成は、単なる整理方法ではなく、<strong>Nuxtへの指示</strong>でもある。</p>
+      </div>
+      <footer class="footer"><span>ここからNuxtのディレクトリ構成へ</span><span>6 / 9</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Nuxt Directory Map</header>
+      <div class="content grid-2">
+        <div class="tree">project/
+├── <span class="dir">pages/</span>          URLに対応するページ
+├── <span class="dir">layouts/</span>        ページ共通の枠
+├── <span class="dir">components/</span>     UI部品
+├── <span class="dir">composables/</span>    状態を伴う共通処理
+├── <span class="dir">utils/</span>          状態を持たない関数
+├── <span class="dir">middleware/</span>     画面遷移前の処理
+├── <span class="dir">plugins/</span>        アプリ起動時の拡張
+├── <span class="dir">server/</span>
+│   └── <span class="dir">api/</span>        サーバーAPI
+├── <span class="dir">assets/</span>         ビルド対象の素材
+├── <span class="dir">public/</span>         そのまま公開する素材
+├── <span class="file">app.vue</span>         アプリの入口
+└── <span class="file">nuxt.config.ts</span>  Nuxt全体の設定</div>
+        <div class="stack">
+          <article class="card convention">
+            <h3>分類の基準は「責務」</h3>
+            <p>何回使うかではなく、<strong>そのコードが何を担当するか</strong>で置き場所を選ぶ。</p>
+          </article>
+          <article class="card">
+            <h3>最初に覚える5か所</h3>
+            <p><code>pages</code> / <code>components</code> / <code>composables</code> / <code>utils</code> / <code>server/api</code></p>
+            <p class="muted">その他は、必要になった回で詳しく扱う。</p>
+          </article>
+        </div>
+      </div>
+      <footer class="footer"><span>Nuxt 3系の基本構成</span><span>7 / 9</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Five Core Directories</header>
+      <div class="content stack">
+        <h2>責務から、置き場所を決める</h2>
+        <div class="map">
+          <div class="head">置き場所</div><div class="head">担当するもの</div><div class="head">具体例</div>
+          <div class="name">pages/</div><div>URLに対応するページ</div><div><code>pages/users/[id].vue</code> → <code>/users/:id</code></div>
+          <div class="name">components/</div><div>画面を構成するUI部品</div><div><code>UserCard.vue</code>、<code>AppHeader.vue</code></div>
+          <div class="name">composables/</div><div>状態を伴う共通処理</div><div><code>useAuth.ts</code>、<code>usePagination.ts</code></div>
+          <div class="name">utils/</div><div>状態を持たない共通関数</div><div><code>formatDate.ts</code>、<code>isValidEmail.ts</code></div>
+          <div class="name">server/api/</div><div>サーバーで実行するAPI</div><div><code>users.get.ts</code>、<code>users.post.ts</code></div>
+        </div>
+        <p class="muted">判断するときは「このコードは何を担当している？」と問いかける。</p>
+      </div>
+      <footer class="footer"><span>名前ではなく責務で分類する</span><span>8 / 9</span></footer>
+    </section>
+
+    <section class="slide" id="quiz-slide">
+      <header class="eyebrow">Quick Check — Enterで答えを表示</header>
+      <div class="content stack">
+        <h2>このコードは、どこに置く？</h2>
+        <div class="quiz-list">
+          <div class="quiz-row"><span class="q">1</span><p>ユーザー一覧の画面</p><p class="answer"><code>pages/users/index.vue</code></p></div>
+          <div class="quiz-row"><span class="q">2</span><p>ユーザー情報を表示するカード</p><p class="answer"><code>components/UserCard.vue</code></p></div>
+          <div class="quiz-row"><span class="q">3</span><p>ページ番号と「次へ」の処理</p><p class="answer"><code>composables/usePagination.ts</code></p></div>
+          <div class="quiz-row"><span class="q">4</span><p>日付の表示形式を変換する関数</p><p class="answer"><code>utils/formatDate.ts</code></p></div>
+          <div class="quiz-row"><span class="q">5</span><p>DBからユーザー一覧を取得するAPI</p><p class="answer"><code>server/api/users.get.ts</code></p></div>
+        </div>
+        <p class="takeaway"><strong>設定</strong>は動作を明示する。<strong>規約</strong>は判断を減らす。<br>Nuxtでは、置き場所を<strong>責務</strong>から決める。</p>
+      </div>
+      <footer class="footer"><span>次回：pagesとcomponentsの責務を掘り下げる</span><span>9 / 9</span></footer>
+    </section>
+  </main>
+
+  <div class="progress" id="progress"></div>
+  <nav class="controls" aria-label="スライド操作">
+    <button type="button" id="prev" aria-label="前へ">←</button>
+    <button type="button" id="next" aria-label="次へ">→</button>
+  </nav>
+
+  <script>
+    const slides = [...document.querySelectorAll('.slide')]
+    let current = 0
+
+    function render() {
+      slides.forEach((slide, index) => slide.classList.toggle('active', index === current))
+      document.getElementById('progress').style.width = `${((current + 1) / slides.length) * 100}%`
+      history.replaceState(null, '', `#${current + 1}`)
+    }
+
+    function move(amount) {
+      current = Math.max(0, Math.min(slides.length - 1, current + amount))
+      render()
+    }
+
+    function toggleAnswers() {
+      if (slides[current].id === 'quiz-slide') slides[current].classList.toggle('show-answers')
+    }
+
+    document.getElementById('prev').addEventListener('click', () => move(-1))
+    document.getElementById('next').addEventListener('click', () => move(1))
+    document.addEventListener('keydown', event => {
+      if (['ArrowRight', 'PageDown', ' '].includes(event.key)) move(1)
+      if (['ArrowLeft', 'PageUp'].includes(event.key)) move(-1)
+      if (event.key === 'Enter') toggleAnswers()
+      if (event.key.toLowerCase() === 'f') document.documentElement.requestFullscreen?.()
+    })
+
+    const requested = Number(location.hash.slice(1))
+    if (Number.isInteger(requested) && requested >= 1 && requested <= slides.length) current = requested - 1
+    render()
+  </script>
+</body>
+</html>
