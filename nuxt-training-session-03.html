@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nuxt規約勉強会 #3 — composablesとutilsの責務</title>
+  <style>
+    :root {
+      --bg: #071411;
+      --ink: #eaf5f1;
+      --muted: #a6bbb4;
+      --green: #00dc82;
+      --cyan: #6ee7f2;
+      --amber: #ffca62;
+      --red: #ff8b8b;
+      --panel: rgba(18, 39, 35, .84);
+      --line: rgba(184, 225, 211, .18);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at 86% 12%, rgba(0, 220, 130, .17), transparent 27%),
+        radial-gradient(circle at 10% 90%, rgba(110, 231, 242, .09), transparent 28%),
+        linear-gradient(135deg, #071411 0%, #0a1b17 100%);
+      pointer-events: none;
+    }
+
+    .deck { position: relative; width: 100%; height: 100%; }
+
+    .slide {
+      display: none;
+      position: absolute;
+      inset: 0;
+      padding: clamp(38px, 5.5vh, 72px) clamp(56px, 7vw, 108px);
+      grid-template-rows: auto 1fr auto;
+      gap: 22px;
+    }
+
+    .slide.active { display: grid; animation: enter .22s ease-out; }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(7px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: clamp(43px, 6vw, 88px); line-height: 1.08; letter-spacing: -.04em; }
+    h2 { font-size: clamp(31px, 4vw, 58px); line-height: 1.15; letter-spacing: -.03em; }
+    h3 { font-size: clamp(19px, 1.9vw, 29px); line-height: 1.3; }
+    p, li { font-size: clamp(16px, 1.5vw, 24px); line-height: 1.52; }
+    code { font-family: "SFMono-Regular", Consolas, monospace; color: var(--cyan); }
+    strong { color: #fff; }
+
+    .eyebrow {
+      color: var(--green);
+      font-size: clamp(14px, 1.45vw, 21px);
+      font-weight: 800;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .accent { color: var(--green); }
+    .muted { color: var(--muted); }
+    .danger { color: var(--red); }
+    .content { align-self: center; width: 100%; }
+    .stack { display: grid; gap: 21px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 23px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 19px; }
+
+    .lead {
+      max-width: 1050px;
+      color: #c5d8d2;
+      font-size: clamp(21px, 2.25vw, 34px);
+      line-height: 1.55;
+    }
+
+    .card {
+      padding: 24px 27px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, .14);
+    }
+
+    .card h3 { margin-bottom: 11px; }
+    .card p + p { margin-top: 11px; }
+    .card ul { margin: 12px 0 0; padding-left: 1.25em; }
+    .card li + li { margin-top: 6px; }
+    .green-top { border-top: 4px solid var(--green); }
+    .cyan-top { border-top: 4px solid var(--cyan); }
+    .red-top { border-top: 4px solid var(--red); }
+
+    .pill {
+      display: inline-block;
+      margin-bottom: 11px;
+      padding: 6px 11px;
+      border-radius: 999px;
+      background: rgba(0, 220, 130, .12);
+      color: var(--green);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: .05em;
+    }
+
+    .code {
+      margin: 0;
+      padding: 17px 20px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(3, 12, 10, .78);
+      color: #d6e8e2;
+      white-space: pre-wrap;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: clamp(13px, 1.14vw, 18px);
+      line-height: 1.5;
+    }
+
+    .code .tag { color: var(--cyan); }
+    .code .fn { color: var(--green); }
+    .code .str { color: var(--amber); }
+    .code .comment { color: #6f8980; }
+
+    .takeaway {
+      padding: 20px 25px;
+      border-left: 5px solid var(--green);
+      border-radius: 0 15px 15px 0;
+      background: rgba(0, 220, 130, .08);
+      font-size: clamp(20px, 2.05vw, 31px);
+      line-height: 1.48;
+    }
+
+    .label {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: stretch;
+      gap: 18px;
+    }
+
+    .compare-arrow {
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      font-size: 34px;
+      font-weight: 900;
+    }
+
+    .signal-list { display: grid; gap: 13px; }
+    .signal {
+      display: grid;
+      grid-template-columns: 175px 1fr;
+      align-items: center;
+      gap: 18px;
+      padding: 15px 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+    }
+
+    .signal .name { color: var(--green); font-family: ui-monospace, monospace; font-size: 18px; font-weight: 800; }
+    .signal p { font-size: clamp(15px, 1.3vw, 20px); }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1.25fr auto 1fr;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .flow .node {
+      min-height: 175px;
+      display: grid;
+      align-content: center;
+      gap: 10px;
+      padding: 21px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+      text-align: center;
+    }
+
+    .flow .arrow { color: var(--green); font-size: 29px; font-weight: 900; }
+    .flow .node p { font-size: clamp(15px, 1.25vw, 19px); }
+
+    .decision {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .decision .step {
+      min-height: 205px;
+      display: grid;
+      align-content: center;
+      gap: 11px;
+      padding: 23px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: var(--panel);
+      text-align: center;
+    }
+
+    .decision .step p { font-size: clamp(15px, 1.3vw, 20px); }
+
+    .warning-list { display: grid; gap: 11px; }
+    .warning {
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      align-items: center;
+      gap: 14px;
+      padding: 13px 18px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--panel);
+    }
+
+    .warning .icon { color: var(--red); font-size: 22px; font-weight: 900; }
+    .warning p { font-size: clamp(14px, 1.2vw, 19px); line-height: 1.4; }
+
+    .quiz-list { display: grid; gap: 10px; }
+    .quiz-row {
+      display: grid;
+      grid-template-columns: 47px 1.55fr 1.15fr;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 18px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--panel);
+    }
+
+    .quiz-row .q {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: rgba(0, 220, 130, .14);
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .quiz-row p { font-size: clamp(14px, 1.22vw, 19px); line-height: 1.35; }
+    .answer { opacity: 0; color: var(--cyan); transition: opacity .18s ease; }
+    .show-answers .answer { opacity: 1; }
+
+    .summary-list { display: grid; gap: 15px; counter-reset: item; }
+    .summary-item {
+      display: grid;
+      grid-template-columns: 58px 1fr;
+      align-items: center;
+      gap: 17px;
+      padding: 17px 23px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--panel);
+    }
+
+    .summary-item::before {
+      counter-increment: item;
+      content: "0" counter(item);
+      color: var(--green);
+      font-family: ui-monospace, monospace;
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #688078;
+      font-size: 13px;
+      letter-spacing: .05em;
+    }
+
+    .progress {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      width: 0;
+      height: 4px;
+      background: var(--green);
+      transition: width .18s ease;
+      z-index: 4;
+    }
+
+    .controls {
+      position: fixed;
+      right: 18px;
+      bottom: 16px;
+      z-index: 5;
+      opacity: .25;
+      transition: opacity .2s;
+    }
+
+    .controls:hover { opacity: 1; }
+    button {
+      width: 38px;
+      height: 34px;
+      margin-left: 5px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #10251f;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    @media (max-width: 900px) {
+      .grid-3, .decision { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      html, body { overflow: visible; background: var(--bg); }
+      .slide, .slide.active {
+        position: relative;
+        display: grid;
+        width: 13.333in;
+        height: 7.5in;
+        break-after: page;
+      }
+      .controls, .progress { display: none; }
+      .answer { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck">
+    <section class="slide active">
+      <header class="eyebrow">Nuxt規約勉強会 #3</header>
+      <div class="content stack">
+        <h1><span class="accent">composables</span> と <span class="accent">utils</span><br>ロジックをどこへ分けるか</h1>
+        <p class="lead">「共通処理だから」だけでは決めない。<br>Vue・Nuxtへの依存から、置き場所を判断する。</p>
+      </div>
+      <footer class="footer"><span>所要時間：約8〜10分</span><span>1 / 10</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Review & Goal</header>
+      <div class="content stack">
+        <h2>UIを分けたら、次はロジックを分ける</h2>
+        <div class="grid-3">
+          <article class="card"><span class="pill">前回</span><h3>UIの責務</h3><p><code>pages</code>は画面全体、<code>components</code>は意味のあるUI部品。</p></article>
+          <article class="card green-top"><span class="pill">今回</span><h3>ロジックの責務</h3><p><code>composables</code>と<code>utils</code>を、依存関係から使い分ける。</p></article>
+          <article class="card"><span class="pill">ゴール</span><h3>理由を説明する</h3><p>処理を見て、どちらへ置くか、その理由まで説明できる。</p></article>
+        </div>
+        <p class="takeaway">今日の問い：<strong>その処理は、Vue・Nuxtの仕組みを必要としているか？</strong></p>
+      </div>
+      <footer class="footer"><span>前回：pagesとcomponentsの責務</span><span>2 / 10</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Framework Rule / Team Rule</header>
+      <div class="content stack">
+        <h2>自動importは同じでも、責務は違う</h2>
+        <div class="grid-2">
+          <article class="card cyan-top">
+            <div class="label" style="color:var(--cyan)"><span class="dot"></span>Nuxtの規約</div>
+            <h3>配置すると自動importされる</h3>
+            <p><code>composables/useAuth.ts</code></p>
+            <p><code>utils/formatPrice.ts</code></p>
+            <p class="muted">呼び出し側でimportを書かずに利用できる。</p>
+          </article>
+          <article class="card green-top">
+            <div class="label" style="color:var(--green)"><span class="dot"></span>チームの規約</div>
+            <h3>依存する仕組みで分類する</h3>
+            <p><code>composables</code>：Vue・Nuxtに依存</p>
+            <p><code>utils</code>：原則として依存しない</p>
+            <p class="muted">「共通処理」という理由だけで選ばない。</p>
+          </article>
+        </div>
+        <p class="takeaway">違いは<strong>再利用するか</strong>ではなく、<strong>リアクティブ性やフレームワークへの依存</strong>。</p>
+      </div>
+      <footer class="footer"><span>配置の動作と設計上の責務を分けて考える</span><span>3 / 10</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">The Core Difference</header>
+      <div class="content stack">
+        <h2>同じ「関数」でも、性質が違う</h2>
+        <div class="compare">
+          <article class="card cyan-top">
+            <span class="pill" style="color:var(--cyan);background:rgba(110,231,242,.10)">utils</span>
+            <h3>入力を受け取り、結果を返す</h3>
+            <p>状態を持たず、Vue・Nuxtを知らない。</p>
+            <pre class="code"><span class="fn">formatPrice</span>(1000)
+→ <span class="str">"1,000円"</span></pre>
+          </article>
+          <div class="compare-arrow">↔</div>
+          <article class="card green-top">
+            <span class="pill">composables</span>
+            <h3>状態やライフサイクルを扱う</h3>
+            <p>Vue・Nuxtの機能を組み合わせて返す。</p>
+            <pre class="code">const { page, next } =
+  <span class="fn">usePagination</span>()</pre>
+          </article>
+        </div>
+        <p class="takeaway"><strong>計算・変換ならutils。</strong>リアクティブな状態やNuxtの文脈が必要なら<strong>composable。</strong></p>
+      </div>
+      <footer class="footer"><span>最初に見るのは「依存」</span><span>4 / 10</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Responsibility of utils/</header>
+      <div class="content grid-2">
+        <div class="stack">
+          <h2><code>utils</code> は<br>小さく純粋な処理</h2>
+          <article class="card cyan-top">
+            <h3>基本の規約</h3>
+            <ul>
+              <li>必要な値は引数で受け取る</li>
+              <li>結果は戻り値として返す</li>
+              <li><code>ref</code>や<code>useRoute</code>を使わない</li>
+              <li>同じ入力なら同じ結果になる</li>
+            </ul>
+          </article>
+          <p class="muted">単体テストがしやすく、Vue以外からも利用できる。</p>
+        </div>
+        <pre class="code"><span class="comment">// utils/formatPrice.ts</span>
+export const <span class="fn">formatPrice</span> = (
+  price: number,
+): string => {
+  return `${price.toLocaleString()}円`
+}
+
+<span class="comment">// utils/isValidEmail.ts</span>
+export const <span class="fn">isValidEmail</span> = (
+  value: string,
+): boolean => {
+  return EMAIL_PATTERN.test(value)
+}</pre>
+      </div>
+      <footer class="footer"><span>命名：formatXxx / isXxx / calculateXxx</span><span>5 / 10</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Responsibility of composables/</header>
+      <div class="content grid-2">
+        <div class="stack">
+          <h2><code>composables</code> は<br>リアクティブな振る舞い</h2>
+          <article class="card green-top">
+            <h3>使うサイン</h3>
+            <ul>
+              <li><code>ref</code>・<code>computed</code>・<code>watch</code></li>
+              <li><code>onMounted</code>などのライフサイクル</li>
+              <li><code>useRoute</code>・<code>useState</code>などのNuxt機能</li>
+              <li>複数のcomposableを組み合わせる</li>
+            </ul>
+          </article>
+        </div>
+        <div class="stack">
+          <pre class="code"><span class="comment">// composables/usePagination.ts</span>
+export const <span class="fn">usePagination</span> = () => {
+  const page = <span class="fn">ref</span>(1)
+
+  const next = () => page.value++
+  const reset = () => { page.value = 1 }
+
+  return {
+    page: <span class="fn">readonly</span>(page),
+    next,
+    reset,
+  }
+}</pre>
+          <article class="card">
+            <p><strong>命名：</strong><code>useXxx</code></p>
+            <p><strong>状態：</strong>関数の中で作る。アプリ全体で共有する場合は<code>useState</code>を使う。</p>
+          </article>
+        </div>
+      </div>
+      <footer class="footer"><span>module直下のrefはSSRで共有される恐れがある</span><span>6 / 10</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Use Them Together</header>
+      <div class="content stack">
+        <h2>composableからutilを利用する</h2>
+        <div class="flow">
+          <article class="node cyan-top"><h3><code>filterUsers</code></h3><p>配列と文字列を受け取り、絞り込んだ配列を返す</p><p class="muted">utils</p></article>
+          <div class="arrow">→</div>
+          <article class="node green-top"><h3><code>useUserSearch</code></h3><p><code>keyword</code>と検索結果をリアクティブに管理する</p><p class="muted">composables</p></article>
+          <div class="arrow">→</div>
+          <article class="node"><h3><code>UserList</code></h3><p>検索欄とユーザー一覧を表示する</p><p class="muted">components</p></article>
+        </div>
+        <div class="grid-2">
+          <pre class="code"><span class="comment">// utils/filterUsers.ts</span>
+export const <span class="fn">filterUsers</span> = (users, keyword) =>
+  users.filter(user => user.name.includes(keyword))</pre>
+          <pre class="code"><span class="comment">// composables/useUserSearch.ts</span>
+const keyword = <span class="fn">ref</span>(<span class="str">''</span>)
+const results = <span class="fn">computed</span>(() =>
+  <span class="fn">filterUsers</span>(users, keyword.value)
+)</pre>
+        </div>
+      </div>
+      <footer class="footer"><span>計算をutilへ分けるとcomposableが読みやすくなる</span><span>7 / 10</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Decision Guide</header>
+      <div class="content stack">
+        <h2>迷ったときの判断順</h2>
+        <div class="decision">
+          <article class="step green-top"><span class="pill">01</span><h3>Vue・Nuxtの機能が必要？</h3><p>必要なら<br><code>composables</code></p></article>
+          <article class="step cyan-top"><span class="pill">02</span><h3>値の計算・変換・判定？</h3><p>そうなら<br><code>utils</code></p></article>
+          <article class="step"><span class="pill">03</span><h3>その場所だけの短い処理？</h3><p>無理に分けず<br>まず近くに置く</p></article>
+        </div>
+        <div class="warning-list">
+          <div class="warning"><span class="icon">×</span><p><code>utils</code>の中で<code>ref</code>や<code>useRoute</code>を呼ぶ</p></div>
+          <div class="warning"><span class="icon">×</span><p>状態のない変換関数を、名前だけ<code>useFormatPrice</code>にする</p></div>
+          <div class="warning"><span class="icon">×</span><p>「いつか再利用するかも」で、1〜2行の処理まで何でも切り出す</p></div>
+        </div>
+      </div>
+      <footer class="footer"><span>抽象化は、必要な責務が見えてから</span><span>8 / 10</span></footer>
+    </section>
+
+    <section class="slide" id="quiz-slide">
+      <header class="eyebrow">Quick Check — Enterで答えを表示</header>
+      <div class="content stack">
+        <h2>どちらに置く？</h2>
+        <div class="quiz-list">
+          <div class="quiz-row"><span class="q">1</span><p>数値を「1,000円」に変換する</p><p class="answer"><code>utils/formatPrice.ts</code></p></div>
+          <div class="quiz-row"><span class="q">2</span><p>モーダルの開閉状態とopen・closeを管理する</p><p class="answer"><code>composables/useModal.ts</code></p></div>
+          <div class="quiz-row"><span class="q">3</span><p>生年月日から年齢を計算する</p><p class="answer"><code>utils/calculateAge.ts</code></p></div>
+          <div class="quiz-row"><span class="q">4</span><p>画面幅を監視してリアクティブに返す</p><p class="answer"><code>composables/useWindowSize.ts</code></p></div>
+          <div class="quiz-row"><span class="q">5</span><p><code>useRoute</code>から検索条件を読み取る</p><p class="answer"><code>composables/useSearchQuery.ts</code></p></div>
+        </div>
+        <p class="muted">回答後、「Vue・Nuxtへの依存があるか」を理由として確認する。</p>
+      </div>
+      <footer class="footer"><span>置き場所と判断理由をセットで答える</span><span>9 / 10</span></footer>
+    </section>
+
+    <section class="slide">
+      <header class="eyebrow">Takeaways</header>
+      <div class="content stack">
+        <h2>今日の3つの規約</h2>
+        <div class="summary-list">
+          <div class="summary-item"><p>Vue・Nuxtに依存しない計算・変換・判定は<code>utils</code>へ置く。</p></div>
+          <div class="summary-item"><p>リアクティブな状態やライフサイクルを扱う処理は<code>composables</code>へ置く。</p></div>
+          <div class="summary-item"><p>短い処理は無理に共通化せず、責務が見えてから切り出す。</p></div>
+        </div>
+        <p class="takeaway">次のPRでは、切り出した関数について<br><strong>「Vue・Nuxtへの依存があるか」</strong>を確認する。</p>
+        <p class="muted">次回：データ取得 — useFetch・useAsyncData・$fetchの使い分け</p>
+      </div>
+      <footer class="footer"><span>Nuxt規約勉強会 #3</span><span>10 / 10</span></footer>
+    </section>
+  </main>
+
+  <div class="progress" id="progress"></div>
+  <nav class="controls" aria-label="スライド操作">
+    <button type="button" id="prev" aria-label="前へ">←</button>
+    <button type="button" id="next" aria-label="次へ">→</button>
+  </nav>
+
+  <script>
+    const slides = [...document.querySelectorAll('.slide')]
+    let current = 0
+
+    function render() {
+      slides.forEach((slide, index) => slide.classList.toggle('active', index === current))
+      document.getElementById('progress').style.width = `${((current + 1) / slides.length) * 100}%`
+      history.replaceState(null, '', `#${current + 1}`)
+    }
+
+    function move(amount) {
+      current = Math.max(0, Math.min(slides.length - 1, current + amount))
+      render()
+    }
+
+    function toggleAnswers() {
+      if (slides[current].id === 'quiz-slide') slides[current].classList.toggle('show-answers')
+    }
+
+    document.getElementById('prev').addEventListener('click', () => move(-1))
+    document.getElementById('next').addEventListener('click', () => move(1))
+    document.addEventListener('keydown', event => {
+      if (['ArrowRight', 'PageDown', ' '].includes(event.key)) move(1)
+      if (['ArrowLeft', 'PageUp'].includes(event.key)) move(-1)
+      if (event.key === 'Enter') toggleAnswers()
+      if (event.key.toLowerCase() === 'f') document.documentElement.requestFullscreen?.()
+    })
+
+    const requested = Number(location.hash.slice(1))
+    if (Number.isInteger(requested) && requested >= 1 && requested <= slides.length) current = requested - 1
+    render()
+  </script>
+</body>
+</html>
