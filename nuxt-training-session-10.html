@@ -1,0 +1,52 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuxt規約勉強会 #10 — テストとPRレビュー</title><link rel="stylesheet" href="nuxt-training-theme.css"><script defer src="nuxt-training-navigation.js"></script></head><body><main class="deck">
+<section class="slide active"><header class="eyebrow">Nuxt規約勉強会 #10 — Final</header><div class="content stack"><h1>テストとPRレビュー<br><span class="accent">規約をチームの習慣にする</span></h1><p class="lead">重要な振る舞いをテストで守り、レビューで設計判断を共有する。</p></div><footer class="footer"><span>所要時間：約8〜10分</span><span>1 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Review & Goal</header><div class="content stack"><h2>実装規約から、継続して守る仕組みへ</h2><div class="grid-3"><article class="card"><span class="pill">前回</span><h3>利用品質</h3><p>Performance・Accessibility・SEOを横断して確認した。</p></article><article class="card green-top"><span class="pill">今回</span><h3>変更への備え</h3><p>テストとレビューで、将来の変更から振る舞いを守る。</p></article><article class="card"><span class="pill">ゴール</span><h3>検証方法を選ぶ</h3><p>対象とリスクに合うテスト・レビュー観点を判断する。</p></article></div><p class="takeaway">今日の問い：<strong>この変更で壊れてはいけない振る舞いは何か？</strong></p></div><footer class="footer"><span>規約は文書だけでなく習慣で維持する</span><span>2 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Test Behavior</header><div class="content stack"><h2>内部実装ではなく、外から見える振る舞いを守る</h2><div class="compare"><article class="card red-top"><span class="pill red">FRAGILE</span><h3>実装の形をテスト</h3><ul><li>private関数が呼ばれた</li><li>refの内部名が一致した</li><li>巨大snapshotだけを比較</li></ul><p class="muted">リファクタリングだけで壊れやすい。</p></article><div class="arrow">→</div><article class="card green-top"><span class="pill">STABLE</span><h3>利用者から見た結果をテスト</h3><ul><li>入力するとエラーが表示される</li><li>保存成功後に一覧へ移動する</li><li>権限がなければ403になる</li></ul><p class="muted">実装を変えても仕様が同じなら通る。</p></article></div><p class="takeaway">テスト名は<strong>「条件 → 振る舞い」</strong>が読める文章にする。</p></div><footer class="footer"><span>Test what, not how</span><span>3 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Choose the Test Level</header><div class="content stack"><h2>対象に合う、最も小さいテストから</h2><div class="table cols-4"><div class="head">対象</div><div class="head">環境</div><div class="head">例</div><div class="head">特徴</div><div class="name">utils</div><div>Unit / Node</div><div><code>formatPrice</code></div><div>速い・依存が少ない</div><div class="name">composables</div><div>Unit / Nuxt</div><div><code>usePagination</code></div><div>reactivity・Nuxt context</div><div class="name">components</div><div>Nuxt runtime</div><div><code>mountSuspended</code></div><div>描画・操作・emit</div><div class="name">server/api</div><div>Integration</div><div>status・validation</div><div>境界を確認</div><div class="name">重要フロー</div><div>E2E / Browser</div><div>login・購入</div><div>本番に近いが重い</div></div><p class="takeaway">すべてE2Eにせず、<strong>小さなテストを多く、重要フローをE2Eで</strong>守る。</p></div><footer class="footer"><span>test/unit・test/nuxt・test/e2eを分ける</span><span>4 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Unit Test</header><div class="content grid-2"><div class="stack"><h2><code>utils</code>は<br>入出力を素早く確認</h2><article class="card green-top"><h3>Arrange / Act / Assert</h3><p>準備・実行・検証を分けると、テストの意図が読みやすい。</p></article><article class="card cyan-top"><h3>境界値も含める</h3><p>通常値だけでなく、0、空文字、上限、無効値を確認する。</p></article></div><pre class="code"><span class="comment">// test/unit/formatPrice.test.ts</span>
+import { describe, expect, it } from <span class="str">'vitest'</span>
+import { formatPrice } from
+  <span class="str">'~/utils/formatPrice'</span>
+
+describe(<span class="str">'formatPrice'</span>, () => {
+  it(<span class="str">'3桁ごとに区切り円を付ける'</span>, () => {
+    <span class="comment">// Arrange</span>
+    const price = 1200
+
+    <span class="comment">// Act</span>
+    const result = formatPrice(price)
+
+    <span class="comment">// Assert</span>
+    expect(result).toBe(<span class="str">'1,200円'</span>)
+  })
+})</pre></div><footer class="footer"><span>純粋関数はテストしやすい設計の見本</span><span>5 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Nuxt Runtime Test</header><div class="content grid-2"><div class="stack"><h2>Nuxt依存があるなら<br>Nuxt環境で確認</h2><article class="card green-top"><h3>代表的な道具</h3><ul><li><code>mountSuspended</code></li><li><code>renderSuspended</code></li><li><code>mockNuxtImport</code></li><li><code>registerEndpoint</code></li></ul></article><p class="muted">Nuxt runtimeとE2Eは同じtest fileへ混ぜず、環境を分ける。</p></div><pre class="code"><span class="comment">// test/nuxt/UserCard.nuxt.spec.ts</span>
+import { mountSuspended } from
+  <span class="str">'@nuxt/test-utils/runtime'</span>
+import { UserCard } from <span class="str">'#components'</span>
+
+it(<span class="str">'編集操作を親へ通知する'</span>, async () => {
+  const wrapper = await <span class="fn">mountSuspended</span>(
+    UserCard,
+    { props: { user } },
+  )
+
+  await wrapper.get(<span class="str">'button'</span>).trigger(<span class="str">'click'</span>)
+
+  expect(wrapper.emitted(<span class="str">'edit'</span>))
+    .toEqual([[user.id]])
+})</pre></div><footer class="footer"><span>Nuxt composable・auto-import・async setupを含むcomponent向け</span><span>6 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">E2E Test</header><div class="content stack"><h2>E2Eは重要な利用者フローに絞る</h2><div class="grid-3"><article class="card green-top"><h3>認証</h3><p>login → protected page → logout。</p></article><article class="card green-top"><h3>主要成果</h3><p>登録・予約・購入など、サービスの中心。</p></article><article class="card green-top"><h3>壊れた影響が大きい</h3><p>複数画面・API・権限をまたぐフロー。</p></article></div><div class="grid-2"><article class="card red-top"><h3>増やしすぎない理由</h3><p>実行が遅く、環境差や待機条件で不安定になりやすい。</p></article><article class="card cyan-top"><h3>良いシナリオ</h3><p>実装手順ではなく、利用者の目的をひとつのストーリーとして確認する。</p></article></div><p class="takeaway">テストの価値は本数ではなく、<strong>リスクをどれだけ下げるか</strong>で考える。</p></div><footer class="footer"><span>Critical pathを少数・確実に</span><span>7 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">PR Review</header><div class="content stack"><h2>レビューで見る5つの層</h2><div class="grid-3"><article class="card"><span class="pill">01</span><h3>責務</h3><p>ディレクトリと分割は適切か。</p></article><article class="card"><span class="pill">02</span><h3>データ</h3><p>取得方法・状態の所有者は適切か。</p></article><article class="card"><span class="pill">03</span><h3>境界</h3><p>入力検証・権限・秘密を守れているか。</p></article><article class="card"><span class="pill">04</span><h3>体験</h3><p>非同期4状態・keyboard・metadata。</p></article><article class="card"><span class="pill">05</span><h3>変更耐性</h3><p>重要な振る舞いをテストしているか。</p></article><article class="card green-top"><span class="pill">PR SIZE</span><h3>小さくする</h3><p>ひとつの目的に絞り、変更理由を書ける大きさに。</p></article></div><p class="takeaway">レビューコメントは好みではなく、<strong>規約・影響・理由</strong>で伝える。</p></div><footer class="footer"><span>「なぜ？」を共有する場にする</span><span>8 / 10</span></footer></section>
+
+<section class="slide" id="quiz-slide"><header class="eyebrow">Quick Check — Enterで答えを表示</header><div class="content stack"><h2>どの検証を選ぶ？</h2><div class="quiz-list"><div class="quiz-row"><span class="q">1</span><p><code>formatPrice</code>の境界値</p><p class="answer">Unit test</p></div><div class="quiz-row"><span class="q">2</span><p><code>useRoute</code>を使うcomponentの描画</p><p class="answer">Nuxt runtime test</p></div><div class="quiz-row"><span class="q">3</span><p>loginから会員ページ表示まで</p><p class="answer">E2E test</p></div><div class="quiz-row"><span class="q">4</span><p>private関数が呼ばれたことだけを検証</p><p class="answer">外から見える振る舞いを検証</p></div><div class="quiz-row"><span class="q">5</span><p>機能追加・大規模整形・renameが1つのPR</p><p class="answer">目的ごとにPRを分ける</p></div></div></div><footer class="footer"><span>対象とリスクからテストレベルを選ぶ</span><span>9 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Series Complete</header><div class="content stack"><h2>規約は「判断を揃えるための共通言語」</h2><div class="grid-3"><article class="card green-top"><h3>置き場所</h3><p>責務からdirectory・page・component・logicを分ける。</p></article><article class="card cyan-top"><h3>データと状態</h3><p>通信の時点と、状態の最小所有者を選ぶ。</p></article><article class="card amber-top"><h3>境界と失敗</h3><p>serverで守り、UIで復旧方法を伝える。</p></article><article class="card"><h3>利用品質</h3><p>速さ・Accessibility・SEOを実装に含める。</p></article><article class="card"><h3>変更耐性</h3><p>振る舞いをテストし、小さなPRで共有する。</p></article><article class="card red-top"><h3>例外</h3><p>規約を外れるなら、理由と影響を説明する。</p></article></div><p class="takeaway"><strong>規約を暗記するより、判断理由を言葉にする。</strong><br>PRで繰り返し使い、必要ならチームで更新する。</p></div><footer class="footer"><span>Nuxt規約勉強会 — Complete</span><span>10 / 10</span></footer></section>
+</main><div class="progress" id="progress"></div><nav class="controls"><button id="prev">←</button><button id="next">→</button></nav></body></html>

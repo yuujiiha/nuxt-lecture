@@ -1,0 +1,64 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuxt規約勉強会 #8 — 非同期UIとエラー処理</title><link rel="stylesheet" href="nuxt-training-theme.css"><script defer src="nuxt-training-navigation.js"></script></head><body><main class="deck">
+<section class="slide active"><header class="eyebrow">Nuxt規約勉強会 #8</header><div class="content stack"><h1>非同期UIとエラー処理<br><span class="accent">失敗を画面設計に含める</span></h1><p class="lead">エラーを「例外」扱いせず、利用者が次に何をすればよいかまで設計する。</p></div><footer class="footer"><span>所要時間：約8〜10分</span><span>1 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Review & Goal</header><div class="content stack"><h2>安全に失敗したら、分かりやすく伝える</h2><div class="grid-3"><article class="card"><span class="pill">前回</span><h3>serverで守る</h3><p>入力・権限・秘密情報・返却値を境界で管理した。</p></article><article class="card green-top"><span class="pill">今回</span><h3>UIで伝える</h3><p>待機・失敗・空状態・復旧方法を画面に用意する。</p></article><article class="card"><span class="pill">ゴール</span><h3>適切な範囲で処理</h3><p>局所エラーとページ全体のエラーを使い分ける。</p></article></div><p class="takeaway">今日の問い：<strong>この失敗で、どこまで画面を止める必要があるか？</strong></p></div><footer class="footer"><span>失敗は通常運転の一部</span><span>2 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Design Four States</header><div class="content stack"><h2>非同期処理には4つの画面がある</h2><div class="grid-4"><article class="card amber-top"><span class="pill amber">PENDING</span><h3>待機</h3><p>何を待っているか。操作可能か。</p></article><article class="card red-top"><span class="pill red">ERROR</span><h3>失敗</h3><p>何が起きたか。再試行できるか。</p></article><article class="card cyan-top"><span class="pill cyan">EMPTY</span><h3>空</h3><p>0件は正常か。次の行動は何か。</p></article><article class="card green-top"><span class="pill">SUCCESS</span><h3>成功</h3><p>取得結果を表示する。</p></article></div><article class="card green-top"><h3>チーム規約</h3><p>非同期処理を追加したPRでは、成功時のスクリーンショットだけでなく、pending・error・emptyの挙動も確認する。</p></article><p class="takeaway">「データがない」と「取得に失敗した」を同じ表示にしない。</p></div><footer class="footer"><span>状態ごとに利用者の次の行動を考える</span><span>3 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Choose the Error Scope</header><div class="content stack"><h2>影響範囲に合わせて処理方法を選ぶ</h2><div class="table cols-4"><div class="head">範囲</div><div class="head">例</div><div class="head">処理</div><div class="head">UI</div><div class="name">操作</div><div>保存・削除に失敗</div><div><code>try / catch</code></div><div>フォーム付近・Toast</div><div class="name">Component</div><div>一部Widgetが失敗</div><div><code>NuxtErrorBoundary</code></div><div>その領域だけ代替表示</div><div class="name">Page</div><div>対象が存在しない</div><div><code>throw createError</code></div><div>404などのerror page</div><div class="name">Global</div><div>起動・chunk取得失敗</div><div>Nuxtのglobal handling</div><div><code>error.vue</code></div></div><p class="takeaway">小さな失敗で画面全体を壊さず、致命的な失敗を握りつぶさない。</p></div><footer class="footer"><span>エラー処理の範囲 = 影響を受ける範囲</span><span>4 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">AsyncData UI</header><div class="content grid-2"><div class="stack"><h2><code>status</code>と<code>error</code>を<br>UIへ反映する</h2><pre class="code">const {
+  data: users,
+  status,
+  error,
+  refresh,
+} = await <span class="fn">useFetch</span>(<span class="str">'/api/users'</span>)</pre><article class="card amber-top"><h3>再取得の規約</h3><p>再試行ボタンは<code>refresh</code>中に無効化し、連打による重複実行を防ぐ。</p></article></div><pre class="code"><span class="tag">&lt;template&gt;</span>
+  <span class="tag">&lt;LoadingState</span>
+    v-if="status === 'pending'"
+  <span class="tag">/&gt;</span>
+  <span class="tag">&lt;ErrorState</span>
+    v-else-if="error"
+    :retrying="status === 'pending'"
+    @retry="refresh"
+  <span class="tag">/&gt;</span>
+  <span class="tag">&lt;EmptyState</span>
+    v-else-if="!users?.length"
+  <span class="tag">/&gt;</span>
+  <span class="tag">&lt;UserList</span>
+    v-else
+    :users="users"
+  <span class="tag">/&gt;</span>
+<span class="tag">&lt;/template&gt;</span></pre></div><footer class="footer"><span>条件の順番も規約として揃える</span><span>5 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Page Errors</header><div class="content grid-2"><div class="stack"><h2>ページが成立しないなら<br><code>createError</code></h2><article class="card green-top"><h3>対象例</h3><ul><li>URLの対象が存在しない</li><li>ページを表示する権限がない</li><li>必須データを取得できない</li></ul></article><p class="muted">詳細説明は<code>message</code>、短いHTTP表現は<code>statusText</code>へ置く。</p></div><pre class="code">const { data: user } = await <span class="fn">useFetch</span>(
+  `/api/users/${route.params.id}`,
+)
+
+if (!user.value) {
+  throw <span class="fn">createError</span>({
+    status: 404,
+    statusText: <span class="str">'Not Found'</span>,
+    message: <span class="str">'ユーザーが見つかりません'</span>,
+  })
+}
+
+<span class="comment">// error.vueから復旧</span>
+await <span class="fn">clearError</span>({ redirect: <span class="str">'/users'</span> })</pre></div><footer class="footer"><span>404を空一覧として見せない</span><span>6 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Local Error Boundary</header><div class="content grid-2"><div class="stack"><h2>一部の失敗は<br>その場所だけ隔離する</h2><article class="card cyan-top"><h3><code>NuxtErrorBoundary</code></h3><p>default slot内のclient-side errorを受け止め、ページ全体ではなく該当領域だけ代替表示にできる。</p></article><p class="muted">例：おすすめ欄、グラフ、外部Widget。なくても主要機能が使える領域。</p></div><pre class="code"><span class="tag">&lt;NuxtErrorBoundary&gt;</span>
+  <span class="tag">&lt;RecommendationPanel /&gt;</span>
+
+  <span class="tag">&lt;template</span> #error="{ clearError }"<span class="tag">&gt;</span>
+    <span class="tag">&lt;p&gt;</span>おすすめを表示できません<span class="tag">&lt;/p&gt;</span>
+    <span class="tag">&lt;button</span> @click="clearError"<span class="tag">&gt;</span>
+      再試行
+    <span class="tag">&lt;/button&gt;</span>
+  <span class="tag">&lt;/template&gt;</span>
+<span class="tag">&lt;/NuxtErrorBoundary&gt;</span></pre></div><footer class="footer"><span>主要機能を巻き込まない</span><span>7 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Action Errors</header><div class="content stack"><h2>フォーム送信は「入力を失わせない」</h2><div class="grid-3"><article class="card amber-top"><h3>送信中</h3><p>送信ボタンを無効化し、進行中と分かる文言にする。</p></article><article class="card red-top"><h3>失敗</h3><p>入力を維持し、修正箇所または再試行方法を示す。</p></article><article class="card green-top"><h3>成功</h3><p>完了を伝え、一覧へ戻るなど次の導線を示す。</p></article></div><div class="grid-2"><article class="card red-top"><h3>避けたいmessage</h3><p>「エラーが発生しました」だけ。利用者が次に何をすべきか分からない。</p></article><article class="card green-top"><h3>伝える内容</h3><p>起きたこと、入力を保持していること、修正または再試行方法。</p></article></div><p class="takeaway">ログには調査情報、画面には<strong>利用者の次の行動</strong>を書く。</p></div><footer class="footer"><span>エラー文言もUI設計</span><span>8 / 10</span></footer></section>
+
+<section class="slide" id="quiz-slide"><header class="eyebrow">Quick Check — Enterで答えを表示</header><div class="content stack"><h2>どの範囲で処理する？</h2><div class="quiz-list"><div class="quiz-row"><span class="q">1</span><p>存在しない商品詳細URL</p><p class="answer"><code>throw createError({ status: 404 })</code></p></div><div class="quiz-row"><span class="q">2</span><p>おすすめWidgetだけ描画に失敗</p><p class="answer"><code>NuxtErrorBoundary</code></p></div><div class="quiz-row"><span class="q">3</span><p>フォーム送信に失敗</p><p class="answer">入力を維持して局所表示</p></div><div class="quiz-row"><span class="q">4</span><p>一覧取得が0件</p><p class="answer">errorではなくEmpty State</p></div><div class="quiz-row"><span class="q">5</span><p>再試行ボタンを連打できる</p><p class="answer">pending中は無効化</p></div></div></div><footer class="footer"><span>影響範囲と復旧方法を答える</span><span>9 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Takeaways</header><div class="content stack"><h2>今日の3つの規約</h2><div class="summary-list"><div class="summary-item"><p>非同期UIはpending・error・empty・successの4状態を設計する。</p></div><div class="summary-item"><p>操作・component・pageの影響範囲に合わせてエラーを処理する。</p></div><div class="summary-item"><p>エラー画面には、利用者が次に取れる行動を用意する。</p></div></div><p class="takeaway">次のPRでは、失敗ごとに<strong>「どこまで止まり、どう復旧するか」</strong>を確認する。</p><p class="muted">次回：品質・パフォーマンス・アクセシビリティ・SEO</p></div><footer class="footer"><span>Nuxt規約勉強会 #8</span><span>10 / 10</span></footer></section>
+</main><div class="progress" id="progress"></div><nav class="controls"><button id="prev">←</button><button id="next">→</button></nav></body></html>

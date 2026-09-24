@@ -1,0 +1,68 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuxt規約勉強会 #6 — Routing・Layout・Middleware</title><link rel="stylesheet" href="nuxt-training-theme.css"><script defer src="nuxt-training-navigation.js"></script></head><body><main class="deck">
+<section class="slide active"><header class="eyebrow">Nuxt規約勉強会 #6</header><div class="content stack"><h1>Routing・Layout・Middleware<br><span class="accent">画面遷移の責務を分ける</span></h1><p class="lead">URL・共通の枠・遷移前の判定を、それぞれ正しい場所へ置く。</p></div><footer class="footer"><span>所要時間：約8〜10分</span><span>1 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Review & Goal</header><div class="content stack"><h2>状態の所有者から、画面遷移の所有者へ</h2><div class="grid-3"><article class="card"><span class="pill">前回</span><h3>最小スコープ</h3><p>状態を必要とする範囲にだけ置いた。</p></article><article class="card green-top"><span class="pill">今回</span><h3>遷移の責務</h3><p>route・layout・middlewareの役割を分ける。</p></article><article class="card"><span class="pill">ゴール</span><h3>置き場所を判断</h3><p>共通化とアクセス判定を正しい仕組みで実装する。</p></article></div><p class="takeaway">今日の問い：<strong>URLを作る、枠を共有する、遷移を判定する——どの責務か？</strong></p></div><footer class="footer"><span>前回：状態管理</span><span>2 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">File-based Routing</header><div class="content stack"><h2><code>pages</code>の構造がURLになる</h2><div class="table cols-3"><div class="head">ファイル</div><div class="head">URL</div><div class="head">用途</div><div class="name">pages/index.vue</div><div><code>/</code></div><div>トップページ</div><div class="name">pages/users/index.vue</div><div><code>/users</code></div><div>一覧</div><div class="name">pages/users/[id].vue</div><div><code>/users/:id</code></div><div>動的パラメータ</div><div class="name">pages/[...slug].vue</div><div><code>/*</code></div><div>複数階層をまとめて受ける</div></div><article class="card green-top"><h3>命名規約</h3><p>URL構造が予測できる名前にする。独自router設定は、標準規約で表現できない理由がある場合だけ。</p></article></div><footer class="footer"><span>URL設計とファイル構成を一致させる</span><span>3 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Navigation</header><div class="content grid-2"><div class="stack"><h2>リンクと処理後の遷移を使い分ける</h2><article class="card cyan-top"><h3><code>&lt;NuxtLink&gt;</code></h3><p>ユーザーがクリックできる通常のリンク。内部リンクのprefetchなどNuxtの最適化を利用できる。</p></article><article class="card green-top"><h3><code>navigateTo()</code></h3><p>保存成功後・条件分岐・middlewareなど、処理の結果として遷移するとき。</p></article></div><div class="stack"><pre class="code"><span class="comment">// クリックできるリンク</span>
+<span class="tag">&lt;NuxtLink</span> to="/users"<span class="tag">&gt;</span>
+  ユーザー一覧
+<span class="tag">&lt;/NuxtLink&gt;</span>
+
+<span class="comment">// 保存成功後</span>
+await <span class="fn">$fetch</span>(<span class="str">'/api/users'</span>, {
+  method: <span class="str">'POST'</span>,
+  body: form.value,
+})
+await <span class="fn">navigateTo</span>(<span class="str">'/users'</span>)</pre><p class="takeaway">遷移目的の<code>div @click</code>は作らない。意味のあるHTML要素を使う。</p></div></div><footer class="footer"><span>リンクはリンク、操作はボタン</span><span>4 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Route Data</header><div class="content grid-2"><div class="stack"><h2>paramsとqueryを<br>使い分ける</h2><div class="table cols-3"><div class="head">種類</div><div class="head">意味</div><div class="head">例</div><div class="name">params</div><div>対象を特定する</div><div><code>/users/123</code></div><div class="name">query</div><div>表示条件を表す</div><div><code>?page=2&amp;sort=name</code></div></div><article class="card red-top"><h3>注意</h3><p>URL由来の値は文字列とは限らず、外部入力でもある。型変換・許可値確認を行う。</p></article></div><pre class="code">const route = <span class="fn">useRoute</span>()
+
+const userId = <span class="fn">computed</span>(() =>
+  String(route.params.id)
+)
+
+const page = <span class="fn">computed</span>(() => {
+  const value = Number(route.query.page)
+  return Number.isInteger(value) &amp;&amp; value &gt; 0
+    ? value
+    : 1
+})</pre></div><footer class="footer"><span>params = 対象、query = 表示条件</span><span>5 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Layouts</header><div class="content grid-2"><div class="stack"><h2><code>layouts</code>は<br>ページ共通の「枠」</h2><article class="card green-top"><h3>向いているもの</h3><ul><li>Header・Sidebar・Footer</li><li>管理画面と一般画面の枠の違い</li><li>ページ間で維持したい共通構造</li></ul></article><p class="muted">個別ページの内容や業務ロジックはlayoutへ入れない。</p></div><div class="stack"><pre class="code"><span class="comment">// layouts/admin.vue</span>
+<span class="tag">&lt;template&gt;</span>
+  <span class="tag">&lt;div</span> class="admin-layout"<span class="tag">&gt;</span>
+    <span class="tag">&lt;AdminSidebar /&gt;</span>
+    <span class="tag">&lt;main&gt;&lt;slot /&gt;&lt;/main&gt;</span>
+  <span class="tag">&lt;/div&gt;</span>
+<span class="tag">&lt;/template&gt;</span>
+
+<span class="comment">// pages/admin/index.vue</span>
+<span class="fn">definePageMeta</span>({
+  layout: <span class="str">'admin'</span>,
+})</pre><p class="takeaway">Layout = 複数ページの外枠。Component = 画面内のUI部品。</p></div></div><footer class="footer"><span>共通だからlayout、ではなく「ページの枠」だからlayout</span><span>6 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Route Middleware</header><div class="content grid-2"><div class="stack"><h2><code>middleware</code>は<br>遷移前の判定</h2><article class="card amber-top"><h3>代表的な用途</h3><ul><li>ログイン必須ページの確認</li><li>権限によるredirect</li><li>不正な遷移条件の拒否</li></ul></article><p class="muted">初回表示ではserverとclientの両方で動く場合がある。ブラウザ専用APIへ無条件に触れない。</p></div><pre class="code"><span class="comment">// middleware/auth.ts</span>
+export default <span class="fn">defineNuxtRouteMiddleware</span>(
+  (to) => {
+    const user = <span class="fn">useCurrentUser</span>()
+
+    if (!user.value) {
+      return <span class="fn">navigateTo</span>({
+        path: <span class="str">'/login'</span>,
+        query: { redirect: to.fullPath },
+      })
+    }
+  },
+)
+
+<span class="comment">// page側</span>
+<span class="fn">definePageMeta</span>({ middleware: <span class="str">'auth'</span> })</pre></div><footer class="footer"><span>重いデータ取得や画面描画はmiddlewareの責務にしない</span><span>7 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Do Not Confuse</header><div class="content stack"><h2>名前が似ていても、実行場所が違う</h2><div class="table cols-4"><div class="head">種類</div><div class="head">場所</div><div class="head">対象</div><div class="head">用途</div><div class="name">Route Middleware</div><div><code>middleware/</code></div><div>Vue Routerの画面遷移</div><div>認証・redirect</div><div class="name">Server Middleware</div><div><code>server/middleware/</code></div><div>サーバーへの全リクエスト</div><div>ログ・context追加</div></div><div class="grid-2"><article class="card red-top"><h3>Route middlewareでしない</h3><p>DBへ直接アクセス、秘密情報を読む、APIレスポンスを加工する。</p></article><article class="card red-top"><h3>Server middlewareでしない</h3><p>画面コンポーネントを制御、Vue Routerのページ遷移を判断する。</p></article></div><p class="takeaway">「何の前に動くのか」を確認する：<strong>画面遷移か、HTTPリクエストか。</strong></p></div><footer class="footer"><span>RouteとServerを混同しない</span><span>8 / 10</span></footer></section>
+
+<section class="slide" id="quiz-slide"><header class="eyebrow">Quick Check — Enterで答えを表示</header><div class="content stack"><h2>どこに置く？</h2><div class="quiz-list"><div class="quiz-row"><span class="q">1</span><p><code>/articles/hello</code>に対応するページ</p><p class="answer"><code>pages/articles/[slug].vue</code></p></div><div class="quiz-row"><span class="q">2</span><p>管理画面共通のSidebarと外枠</p><p class="answer"><code>layouts/admin.vue</code></p></div><div class="quiz-row"><span class="q">3</span><p>未ログインならloginへredirect</p><p class="answer">Route middleware</p></div><div class="quiz-row"><span class="q">4</span><p>全APIリクエストへrequest IDを付加</p><p class="answer">Server middleware</p></div><div class="quiz-row"><span class="q">5</span><p>一覧のページ番号</p><p class="answer">URLのquery</p></div></div></div><footer class="footer"><span>対象と実行タイミングを理由に答える</span><span>9 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Takeaways</header><div class="content stack"><h2>今日の3つの規約</h2><div class="summary-list"><div class="summary-item"><p>URLは<code>pages</code>のファイル構成で表現し、標準ルーティングを優先する。</p></div><div class="summary-item"><p>ページ共通の外枠は<code>layouts</code>、画面内の部品は<code>components</code>へ置く。</p></div><div class="summary-item"><p>Route middlewareは、画面遷移前の認証・権限・redirectに限定する。</p></div></div><p class="takeaway">次のPRでは、遷移処理について<strong>「何の前に、どこで動くか」</strong>を確認する。</p><p class="muted">次回：Server API・runtimeConfig・セキュリティ</p></div><footer class="footer"><span>Nuxt規約勉強会 #6</span><span>10 / 10</span></footer></section>
+</main><div class="progress" id="progress"></div><nav class="controls"><button id="prev">←</button><button id="next">→</button></nav></body></html>

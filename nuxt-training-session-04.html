@@ -1,0 +1,62 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuxt規約勉強会 #4 — データ取得</title><link rel="stylesheet" href="nuxt-training-theme.css"><script defer src="nuxt-training-navigation.js"></script></head><body><main class="deck">
+<section class="slide active"><header class="eyebrow">Nuxt規約勉強会 #4</header><div class="content stack"><h1>データ取得<br><span class="accent">3つの道具を使い分ける</span></h1><p class="lead"><code>useFetch</code>・<code>useAsyncData</code>・<code>$fetch</code>を、呼び出すタイミングと目的から選ぶ。</p></div><footer class="footer"><span>所要時間：約8〜10分</span><span>1 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Review & Goal</header><div class="content stack"><h2>ロジックの置き場所から、通信方法へ</h2><div class="grid-3"><article class="card"><span class="pill">前回</span><h3>依存で分類</h3><p>Vue・Nuxtに依存する処理は<code>composables</code>へ分けた。</p></article><article class="card green-top"><span class="pill">今回</span><h3>取得方法を選ぶ</h3><p>初期表示・独自処理・ユーザー操作を区別する。</p></article><article class="card"><span class="pill">ゴール</span><h3>二重取得を防ぐ</h3><p>SSRとhydrationを意識した通信を書ける。</p></article></div><p class="takeaway">今日の問い：<strong>その通信は「画面を作るため」か、「操作の結果」か？</strong></p></div><footer class="footer"><span>前回：composablesとutils</span><span>2 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Why Nuxt Has Fetch Composables</header><div class="content stack"><h2><code>$fetch</code>だけでは二重取得が起きうる</h2><div class="flow"><article class="node cyan-top"><span class="num">01 SERVER</span><h3>SSR</h3><p>HTMLを作るためにAPI取得</p></article><article class="node amber-top"><span class="num">02 TRANSFER</span><h3>Payload</h3><p>取得結果をブラウザへ渡す</p></article><article class="node green-top"><span class="num">03 CLIENT</span><h3>Hydration</h3><p>結果を再利用して画面を引き継ぐ</p></article></div><div class="compare"><article class="card red-top"><h3><code>$fetch</code>をsetup直下で使用</h3><p>サーバーとクライアントで再実行され、同じ取得が2回になる可能性。</p></article><div class="arrow">→</div><article class="card green-top"><h3><code>useFetch</code> / <code>useAsyncData</code></h3><p>SSR結果をpayloadで渡し、hydration時の重複取得を防ぐ。</p></article></div></div><footer class="footer"><span>SSRの結果をクライアントへ引き継ぐ</span><span>3 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Three Tools</header><div class="content stack"><h2>まずはこの3択で判断する</h2><div class="table cols-4"><div class="head">道具</div><div class="head">向いている場面</div><div class="head">特徴</div><div class="head">代表例</div><div class="name">useFetch</div><div>初期表示のAPI取得</div><div>URLを渡す、SSR対応</div><div>一覧・詳細の表示</div><div class="name">useAsyncData</div><div>独自の非同期処理</div><div>関数を渡す、keyを管理</div><div>SDK・複数取得・加工</div><div class="name">$fetch</div><div>操作を契機とする通信</div><div>その場でPromiseを返す</div><div>保存・削除・再送信</div></div><p class="takeaway"><strong>初期表示はuseFetch。</strong>複雑な取得はuseAsyncData。<strong>クリック後は$fetch。</strong></p></div><footer class="footer"><span>迷ったら「いつ実行する通信か」を確認</span><span>4 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">useFetch</header><div class="content grid-2"><div class="stack"><h2>APIから画面の<br>初期データを取得</h2><article class="card green-top"><h3>チーム規約</h3><ul><li>ページのsetup直下で呼ぶ</li><li>URL・queryはリアクティブな値で渡す</li><li><code>data</code>だけでなく<code>status</code>と<code>error</code>も扱う</li><li>必要なフィールドだけpayloadへ載せる</li></ul></article></div><pre class="code"><span class="comment">// pages/users/index.vue</span>
+const page = <span class="fn">ref</span>(1)
+
+const {
+  data: users,
+  status,
+  error,
+  refresh,
+} = await <span class="fn">useFetch</span>(<span class="str">'/api/users'</span>, {
+  query: { page },
+  pick: [<span class="str">'items'</span>, <span class="str">'total'</span>],
+})</pre></div><footer class="footer"><span>useFetch = useAsyncData + $fetchの一般的な形</span><span>5 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">useAsyncData</header><div class="content grid-2"><div class="stack"><h2>独自の非同期処理を<br>SSR対応にする</h2><article class="card cyan-top"><h3>使うサイン</h3><ul><li>外部SDKや独自clientを呼ぶ</li><li>複数の取得をまとめる</li><li>取得後に加工して返す</li><li>キャッシュを識別するkeyが必要</li></ul></article><p class="muted">動的データでは、keyにもIDなどの識別子を含める。</p></div><pre class="code">const route = <span class="fn">useRoute</span>()
+const id = route.params.id
+
+const { data, status, error } =
+  await <span class="fn">useAsyncData</span>(
+    `user:${id}`,
+    async () => {
+      const [user, posts] =
+        await Promise.all([
+          api.users.get(id),
+          api.posts.byUser(id),
+        ])
+      return { user, posts }
+    },
+  )</pre></div><footer class="footer"><span>同じkeyはdata・status・errorを共有する</span><span>6 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">$fetch</header><div class="content grid-2"><div class="stack"><h2>ユーザー操作の結果を<br>サーバーへ送る</h2><article class="card amber-top"><h3>代表的な場面</h3><ul><li>フォーム送信</li><li>追加・更新・削除</li><li>再試行ボタン</li><li>明示的なユーザー操作</li></ul></article><p class="muted">送信中は二重操作を防ぎ、失敗時はユーザーへ伝える。</p></div><pre class="code">const saving = <span class="fn">ref</span>(false)
+
+const save = async () => {
+  saving.value = true
+  try {
+    await <span class="fn">$fetch</span>(<span class="str">'/api/users'</span>, {
+      method: <span class="str">'POST'</span>,
+      body: form.value,
+    })
+    await <span class="fn">navigateTo</span>(<span class="str">'/users'</span>)
+  } finally {
+    saving.value = false
+  }
+}</pre></div><footer class="footer"><span>イベントハンドラー内でuseFetchを始めない</span><span>7 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Four UI States</header><div class="content stack"><h2>通信処理は4状態をセットで設計する</h2><div class="grid-4"><article class="card amber-top"><span class="pill amber">PENDING</span><h3>取得中</h3><p>SkeletonやSpinner。必要なら操作を無効化。</p></article><article class="card red-top"><span class="pill red">ERROR</span><h3>失敗</h3><p>内容を伝え、再試行の導線を用意。</p></article><article class="card cyan-top"><span class="pill cyan">EMPTY</span><h3>0件</h3><p>不具合と誤解されない空状態を表示。</p></article><article class="card green-top"><span class="pill">SUCCESS</span><h3>成功</h3><p>取得したデータを表示。</p></article></div><pre class="code"><span class="tag">&lt;LoadingState</span> v-if="status === 'pending'" <span class="tag">/&gt;</span>
+<span class="tag">&lt;ErrorState</span> v-else-if="error" @retry="refresh" <span class="tag">/&gt;</span>
+<span class="tag">&lt;EmptyState</span> v-else-if="!users?.items.length" <span class="tag">/&gt;</span>
+<span class="tag">&lt;UserList</span> v-else :users="users.items" <span class="tag">/&gt;</span></pre></div><footer class="footer"><span>成功時だけ書いて終わらない</span><span>8 / 10</span></footer></section>
+
+<section class="slide" id="quiz-slide"><header class="eyebrow">Quick Check — Enterで答えを表示</header><div class="content stack"><h2>どれを使う？</h2><div class="quiz-list"><div class="quiz-row"><span class="q">1</span><p>商品一覧ページの初期表示</p><p class="answer"><code>useFetch</code></p></div><div class="quiz-row"><span class="q">2</span><p>保存ボタンを押してPOSTする</p><p class="answer"><code>$fetch</code></p></div><div class="quiz-row"><span class="q">3</span><p>CMS SDKで記事と著者をまとめて取得</p><p class="answer"><code>useAsyncData</code></p></div><div class="quiz-row"><span class="q">4</span><p>動的ページでuseAsyncDataのkeyを<code>'user'</code>固定</p><p class="answer">IDを含めて<br><code>`user:${id}`</code></p></div><div class="quiz-row"><span class="q">5</span><p>取得成功時のUIだけ実装した</p><p class="answer">pending・error・emptyも実装</p></div></div></div><footer class="footer"><span>実行タイミングとSSRを理由に答える</span><span>9 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Takeaways</header><div class="content stack"><h2>今日の3つの規約</h2><div class="summary-list"><div class="summary-item"><p>初期表示のAPI取得は、原則<code>useFetch</code>を使う。</p></div><div class="summary-item"><p>独自の非同期処理は<code>useAsyncData</code>、操作後の通信は<code>$fetch</code>を使う。</p></div><div class="summary-item"><p>pending・error・empty・successの4状態を必ず設計する。</p></div></div><p class="takeaway">次のPRでは、通信ごとに<strong>「初期表示か、ユーザー操作か」</strong>を確認する。</p><p class="muted">次回：状態管理 — ref・computed・URL・useState・Pinia</p></div><footer class="footer"><span>Nuxt規約勉強会 #4</span><span>10 / 10</span></footer></section>
+</main><div class="progress" id="progress"></div><nav class="controls"><button id="prev">←</button><button id="next">→</button></nav></body></html>

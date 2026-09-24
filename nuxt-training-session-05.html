@@ -1,0 +1,43 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuxt規約勉強会 #5 — 状態管理</title><link rel="stylesheet" href="nuxt-training-theme.css"><script defer src="nuxt-training-navigation.js"></script></head><body><main class="deck">
+<section class="slide active"><header class="eyebrow">Nuxt規約勉強会 #5</header><div class="content stack"><h1>状態管理<br><span class="accent">最も小さい置き場所を選ぶ</span></h1><p class="lead"><code>ref</code>・<code>computed</code>・URL・<code>useState</code>・Piniaを、状態の所有者から選ぶ。</p></div><footer class="footer"><span>所要時間：約8〜10分</span><span>1 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Review & Goal</header><div class="content stack"><h2>データを取得した後、どこで持つか</h2><div class="grid-3"><article class="card"><span class="pill">前回</span><h3>通信を使い分ける</h3><p>初期表示・独自処理・操作後の通信を区別した。</p></article><article class="card green-top"><span class="pill">今回</span><h3>所有者を決める</h3><p>誰がその状態を必要とするかを確認する。</p></article><article class="card"><span class="pill">ゴール</span><h3>過剰な共有を防ぐ</h3><p>何でもstoreへ入れず、最小スコープを選べる。</p></article></div><p class="takeaway">今日の問い：<strong>この状態を必要としているのは、誰か？</strong></p></div><footer class="footer"><span>状態は広げるほど変更の影響も広がる</span><span>2 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Smallest Owner</header><div class="content stack"><h2>状態は、必要な範囲にだけ置く</h2><div class="flow four"><article class="node green-top"><span class="num">LOCAL</span><h3><code>ref</code></h3><p>ひとつのcomponent・composable</p></article><article class="node cyan-top"><span class="num">URL</span><h3>params / query</h3><p>共有・再読み込みしたい画面条件</p></article><article class="node amber-top"><span class="num">SHARED</span><h3><code>useState</code></h3><p>複数箇所で使う単純な状態</p></article><article class="node red-top"><span class="num">DOMAIN</span><h3>Pinia</h3><p>複雑な業務状態と操作</p></article></div><p class="takeaway"><strong>ローカル → URL／AsyncData → useState → Pinia</strong>の順に、必要な範囲だけ広げる。</p><p class="muted">APIの取得結果は、まずuseFetch・useAsyncDataが持つdataを利用する。</p></div><footer class="footer"><span>「共有できる」より「共有する必要があるか」</span><span>3 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">ref / computed / watch</header><div class="content stack"><h2>値の種類でリアクティブAPIを選ぶ</h2><div class="table cols-3"><div class="head">API</div><div class="head">役割</div><div class="head">例</div><div class="name">ref</div><div>元となる状態</div><div>入力値、開閉状態、選択中ID</div><div class="name">computed</div><div>既存状態から導く値</div><div>合計金額、絞り込み結果</div><div class="name">watch</div><div>変化に反応する副作用</div><div>保存、ログ、外部APIとの同期</div></div><div class="compare"><article class="card red-top"><h3>避けたい</h3><pre class="code"><span class="fn">watch</span>(items, () => {
+  total.value = calculate(items.value)
+})</pre></article><div class="arrow">→</div><article class="card green-top"><h3>導出値はcomputed</h3><pre class="code">const total = <span class="fn">computed</span>(() =>
+  calculate(items.value)
+)</pre></article></div></div><footer class="footer"><span>watchは「値を作る」ためではなく「副作用」のため</span><span>4 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">URL Is State</header><div class="content grid-2"><div class="stack"><h2>画面条件はURLに置けないか考える</h2><article class="card cyan-top"><h3>URLに向いている状態</h3><ul><li>検索キーワード</li><li>ページ番号・並び順</li><li>フィルター条件</li><li>選択中のタブ</li></ul></article><p class="muted">URLならブックマーク・共有・戻る／進む・再読み込みが自然に動く。</p></div><pre class="code">const route = <span class="fn">useRoute</span>()
+
+const page = <span class="fn">computed</span>(() =>
+  Number(route.query.page ?? 1)
+)
+
+const setPage = (next: number) =>
+  <span class="fn">navigateTo</span>({
+    query: {
+      ...route.query,
+      page: next,
+    },
+  })</pre></div><footer class="footer"><span>復元したい画面状態はURLを第一候補に</span><span>5 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">useState</header><div class="content grid-2"><div class="stack"><h2><code>useState</code>は<br>SSR対応の共有状態</h2><article class="card green-top"><h3>向いている場面</h3><ul><li>複数componentで使う単純な状態</li><li>SSRからhydrationへ引き継ぐ状態</li><li>composable経由で共有したい値</li></ul></article><p class="muted">値はpayloadへシリアライズされるため、関数・class・Symbolなどを入れない。</p></div><div class="stack"><pre class="code"><span class="comment">// composables/useCurrentUser.ts</span>
+export const <span class="fn">useCurrentUser</span> = () =>
+  <span class="fn">useState</span>&lt;User | null&gt;(
+    <span class="str">'current-user'</span>,
+    () => null,
+  )</pre><article class="card red-top"><h3>禁止</h3><pre class="code"><span class="comment">// module直下のref</span>
+const user = <span class="fn">ref</span>(null)</pre><p>サーバーではリクエスト間で状態を共有する危険がある。</p></article></div></div><footer class="footer"><span>keyは用途が分かる一意な名前にする</span><span>6 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">When to Use Pinia</header><div class="content stack"><h2>Piniaは「状態があるから」ではなく、複雑さに使う</h2><div class="grid-3"><article class="card green-top"><span class="pill">GOOD FIT</span><h3>業務状態</h3><p>カート・権限・編集セッションなど、複数画面にまたがる。</p></article><article class="card green-top"><span class="pill">GOOD FIT</span><h3>操作を集約</h3><p>state・getter・actionとして、更新ルールを一か所にまとめる。</p></article><article class="card green-top"><span class="pill">GOOD FIT</span><h3>追跡が必要</h3><p>DevToolsやテストで状態遷移を確認したい。</p></article></div><div class="grid-2"><article class="card red-top"><h3>Piniaに入れなくてよい例</h3><p>1つのモーダルの開閉、フォームの一時入力、API取得結果の単純な表示。</p></article><article class="card cyan-top"><h3>先に検討するもの</h3><p><code>ref</code>、URL、<code>useFetch</code>のdata、<code>useState</code>。</p></article></div></div><footer class="footer"><span>storeは「グローバル変数置き場」ではない</span><span>7 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Decision Guide</header><div class="content stack"><h2>状態の置き場所を決める5問</h2><div class="steps"><div class="step"><p><strong>そのUIだけ？</strong> → <code>ref</code>をcomponent／composable内に置く。</p></div><div class="step"><p><strong>既存の値から計算できる？</strong> → 新しい状態を作らず<code>computed</code>。</p></div><div class="step"><p><strong>URLで共有・復元したい？</strong> → params／query。</p></div><div class="step"><p><strong>複数箇所で使う単純な状態？</strong> → <code>useState</code>。</p></div><div class="step"><p><strong>複雑な業務状態と操作？</strong> → Piniaを検討。</p></div></div><p class="takeaway">同じ情報を複数の場所にコピーしない。<strong>Single Source of Truth</strong>を決める。</p></div><footer class="footer"><span>状態を増やす前に、導出できないか確認</span><span>8 / 10</span></footer></section>
+
+<section class="slide" id="quiz-slide"><header class="eyebrow">Quick Check — Enterで答えを表示</header><div class="content stack"><h2>どこで持つ？</h2><div class="quiz-list"><div class="quiz-row"><span class="q">1</span><p>ひとつのアコーディオンの開閉</p><p class="answer">component内の<code>ref</code></p></div><div class="quiz-row"><span class="q">2</span><p>商品一覧のページ番号</p><p class="answer">URLのquery</p></div><div class="quiz-row"><span class="q">3</span><p>ログイン中ユーザーを複数componentで参照</p><p class="answer"><code>useState</code>をcomposable経由で</p></div><div class="quiz-row"><span class="q">4</span><p>商品と個数から合計金額を作る</p><p class="answer"><code>computed</code></p></div><div class="quiz-row"><span class="q">5</span><p>複数画面にまたがるカートと更新操作</p><p class="answer">Piniaを検討</p></div></div></div><footer class="footer"><span>必要な範囲が最小になる答えを選ぶ</span><span>9 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Takeaways</header><div class="content stack"><h2>今日の3つの規約</h2><div class="summary-list"><div class="summary-item"><p>状態は、必要とする範囲が最も小さい場所へ置く。</p></div><div class="summary-item"><p>導出値は<code>computed</code>、副作用だけを<code>watch</code>で扱う。</p></div><div class="summary-item"><p>単純な共有は<code>useState</code>、複雑な業務状態はPiniaを検討する。</p></div></div><p class="takeaway">次のPRでは、追加した状態ごとに<strong>「所有者は誰か」</strong>を確認する。</p><p class="muted">次回：ルーティング・レイアウト・ミドルウェア</p></div><footer class="footer"><span>Nuxt規約勉強会 #5</span><span>10 / 10</span></footer></section>
+</main><div class="progress" id="progress"></div><nav class="controls"><button id="prev">←</button><button id="next">→</button></nav></body></html>

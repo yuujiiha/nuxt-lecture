@@ -1,0 +1,62 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuxt規約勉強会 #7 — Server APIとセキュリティ</title><link rel="stylesheet" href="nuxt-training-theme.css"><script defer src="nuxt-training-navigation.js"></script></head><body><main class="deck">
+<section class="slide active"><header class="eyebrow">Nuxt規約勉強会 #7</header><div class="content stack"><h1>Server API・runtimeConfig<br><span class="accent">境界で安全を守る</span></h1><p class="lead">クライアントを信用せず、秘密情報と検証をサーバー側へ置く。</p></div><footer class="footer"><span>所要時間：約8〜10分</span><span>1 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Review & Goal</header><div class="content stack"><h2>画面遷移の境界から、client／serverの境界へ</h2><div class="grid-3"><article class="card"><span class="pill">前回</span><h3>遷移の責務</h3><p>route・layout・middlewareを実行場所で分けた。</p></article><article class="card green-top"><span class="pill">今回</span><h3>信頼境界</h3><p>ブラウザから届く値を検証し、秘密をserverに閉じ込める。</p></article><article class="card"><span class="pill">ゴール</span><h3>安全なAPI</h3><p>入力・認証・エラー・返却値を意識して実装する。</p></article></div><p class="takeaway">今日の前提：<strong>ブラウザから送られてくる値は、すべて変更できる。</strong></p></div><footer class="footer"><span>Clientは利用者の環境で動く</span><span>2 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Trust Boundary</header><div class="content stack"><h2>serverは「信頼の境界」</h2><div class="compare"><article class="card cyan-top"><span class="pill cyan">CLIENT</span><h3>利用者から見える・変更できる</h3><ul><li>Vue component</li><li>public runtimeConfig</li><li>リクエスト内容</li><li>ブラウザのJavaScript</li></ul></article><div class="arrow">→<br>検証<br>→</div><article class="card green-top"><span class="pill">SERVER</span><h3>権限を確認して処理する</h3><ul><li>DB・外部APIへのアクセス</li><li>秘密鍵・API token</li><li>入力検証・認可</li><li>必要なデータだけ返却</li></ul></article></div><p class="takeaway">client側のvalidationは使いやすさのため。<strong>安全性を守るvalidationはserver側でも必須。</strong></p></div><footer class="footer"><span>Client validation ≠ Security</span><span>3 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">File-based Server Routes</header><div class="content stack"><h2><code>server/api</code>もファイル名が規約になる</h2><div class="table cols-3"><div class="head">ファイル</div><div class="head">HTTP</div><div class="head">用途</div><div class="name">users.get.ts</div><div><code>GET /api/users</code></div><div>一覧取得</div><div class="name">users.post.ts</div><div><code>POST /api/users</code></div><div>新規作成</div><div class="name">users/[id].get.ts</div><div><code>GET /api/users/:id</code></div><div>詳細取得</div><div class="name">users/[id].delete.ts</div><div><code>DELETE /api/users/:id</code></div><div>削除</div></div><pre class="code"><span class="comment">// server/api/users.get.ts</span>
+export default <span class="fn">defineEventHandler</span>(async (event) => {
+  const query = <span class="fn">getQuery</span>(event)
+  return userRepository.findMany(query)
+})</pre></div><footer class="footer"><span>URLとHTTP methodがファイル名から読める</span><span>4 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Validate Every Input</header><div class="content grid-2"><div class="stack"><h2>入力は「型」だけでなく<br>「値」も検証する</h2><article class="card red-top"><h3>検証対象</h3><ul><li>path params</li><li>query parameters</li><li>request body</li><li>headers・cookies</li><li>認証済みユーザーの権限</li></ul></article><p class="muted">TypeScriptの型は実行時の外部入力を守らない。</p></div><pre class="code">export default <span class="fn">defineEventHandler</span>(async (event) => {
+  const body = await <span class="fn">readValidatedBody</span>(
+    event,
+    createUserSchema.parse,
+  )
+
+  const session = await requireSession(event)
+  if (!session.canCreateUser) {
+    throw <span class="fn">createError</span>({
+      status: 403,
+      statusText: <span class="str">'Forbidden'</span>,
+    })
+  }
+
+  return userRepository.create(body)
+})</pre></div><footer class="footer"><span>認証：誰か／認可：その操作を許可するか</span><span>5 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">runtimeConfig</header><div class="content grid-2"><div class="stack"><h2>秘密情報は<br><code>public</code>へ置かない</h2><div class="table cols-3"><div class="head">場所</div><div class="head">Client</div><div class="head">例</div><div class="name">runtimeConfig</div><div>見えない</div><div>secret・token</div><div class="name">runtimeConfig.public</div><div>見える</div><div>公開API base URL</div></div><article class="card red-top"><h3>重要</h3><p><code>public</code>、HTML、<code>useState</code>、APIレスポンスへ秘密値を渡さない。</p></article></div><pre class="code"><span class="comment">// nuxt.config.ts</span>
+export default <span class="fn">defineNuxtConfig</span>({
+  runtimeConfig: {
+    apiSecret: <span class="str">''</span>,
+    public: {
+      apiBase: <span class="str">'/api'</span>,
+    },
+  },
+})
+
+<span class="comment">// server/api/external.get.ts</span>
+const config = <span class="fn">useRuntimeConfig</span>(event)
+const token = config.apiSecret</pre></div><footer class="footer"><span>publicは「公開してもよい」という意味</span><span>6 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Return Only What Is Needed</header><div class="content stack"><h2>DBの値をそのまま返さない</h2><div class="compare"><article class="card red-top"><span class="pill red">BAD</span><h3>内部モデルを丸ごと返す</h3><pre class="code">return user
+
+<span class="comment">// passwordHash、内部フラグ、
+// 不要な個人情報が混ざる恐れ</span></pre></article><div class="arrow">→</div><article class="card green-top"><span class="pill">GOOD</span><h3>レスポンス用DTOを作る</h3><pre class="code">return {
+  id: user.id,
+  name: user.name,
+  avatarUrl: user.avatarUrl,
+}</pre></article></div><div class="grid-3"><article class="card"><h3>最小限</h3><p>画面で必要な項目だけ。</p></article><article class="card"><h3>一貫性</h3><p>日付・nullable・命名を統一。</p></article><article class="card"><h3>境界</h3><p>内部構造と公開APIを分離。</p></article></div></div><footer class="footer"><span>返却値もセキュリティ設計の一部</span><span>7 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Errors & Logging</header><div class="content stack"><h2>利用者へ返す情報と、運用ログを分ける</h2><div class="grid-2"><article class="card green-top"><span class="pill">RESPONSE</span><h3>利用者へ</h3><ul><li>適切なHTTP status</li><li>安全で理解可能なmessage</li><li>入力項目ごとのエラー</li></ul><pre class="code">throw <span class="fn">createError</span>({
+  status: 404,
+  statusText: <span class="str">'User Not Found'</span>,
+})</pre></article><article class="card cyan-top"><span class="pill cyan">SERVER LOG</span><h3>開発・運用者へ</h3><ul><li>request ID</li><li>原因となった例外</li><li>調査に必要なcontext</li></ul><p class="muted">password・token・不要な個人情報はログにも残さない。</p></article></div><p class="takeaway">stack traceやDBエラーを、そのままclientへ返さない。</p></div><footer class="footer"><span>公開情報と調査情報を分離する</span><span>8 / 10</span></footer></section>
+
+<section class="slide" id="quiz-slide"><header class="eyebrow">Quick Check — Enterで答えを表示</header><div class="content stack"><h2>安全なのはどちら？</h2><div class="quiz-list"><div class="quiz-row"><span class="q">1</span><p>外部APIの秘密tokenを置く</p><p class="answer"><code>runtimeConfig</code>のprivate側</p></div><div class="quiz-row"><span class="q">2</span><p>clientで検証済みなのでserverでは検証しない</p><p class="answer">× serverでも必ず検証</p></div><div class="quiz-row"><span class="q">3</span><p>自分の投稿だけ削除できるか確認する</p><p class="answer">serverで認可を確認</p></div><div class="quiz-row"><span class="q">4</span><p>DBのUser objectをそのまま返す</p><p class="answer">× 必要項目だけDTOで返す</p></div><div class="quiz-row"><span class="q">5</span><p>DBエラーのstackをAPIレスポンスへ入れる</p><p class="answer">× serverログへ分離</p></div></div></div><footer class="footer"><span>clientは変更可能、serverが最後の防衛線</span><span>9 / 10</span></footer></section>
+
+<section class="slide"><header class="eyebrow">Takeaways</header><div class="content stack"><h2>今日の3つの規約</h2><div class="summary-list"><div class="summary-item"><p>外部入力はserverで検証し、認証と認可を分けて確認する。</p></div><div class="summary-item"><p>秘密値はprivateな<code>runtimeConfig</code>へ置き、clientへ渡さない。</p></div><div class="summary-item"><p>APIは必要なデータだけ返し、内部エラーと公開messageを分離する。</p></div></div><p class="takeaway">次のPRでは、APIごとに<strong>入力・権限・返却値・ログ</strong>を確認する。</p><p class="muted">次回：非同期UIとエラー処理</p></div><footer class="footer"><span>Nuxt規約勉強会 #7</span><span>10 / 10</span></footer></section>
+</main><div class="progress" id="progress"></div><nav class="controls"><button id="prev">←</button><button id="next">→</button></nav></body></html>
